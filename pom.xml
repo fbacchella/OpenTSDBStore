@@ -21,6 +21,7 @@
             <groupId>fr.jrds</groupId>
             <artifactId>jrds</artifactId>
             <version>1.0-SNAPSHOT</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>net.opentsdb</groupId>
