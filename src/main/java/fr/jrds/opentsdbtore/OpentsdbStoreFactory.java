@@ -1,92 +1,90 @@
 package fr.jrds.opentsdbtore;
 
-import java.io.IOException;
-import java.util.Map;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Properties;
+import java.util.Timer;
 
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.hadoop.hbase.HColumnDescriptor;
-import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.MasterNotRunningException;
-import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.ZooKeeperConnectionException;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
-import org.apache.hadoop.hbase.client.HTable;
-import org.hbase.async.Bytes;
-import org.hbase.async.HBaseClient;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 
-import net.opentsdb.core.TSDB;
-import net.opentsdb.utils.Config;
 import jrds.Probe;
 import jrds.PropertiesManager;
+import jrds.Util;
 import jrds.store.AbstractStoreFactory;
 
 public class OpentsdbStoreFactory extends AbstractStoreFactory<OpentsdbStore> {
-    private TSDB tsdb = null;
+
+    private static final JsonFactory factory = new JsonFactory();
+    private static final ThreadLocal<ObjectMapper> json = new ThreadLocal<ObjectMapper>() {
+        @Override
+        protected ObjectMapper initialValue() {
+            return new ObjectMapper(factory)
+                    .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
+                    .configure(JsonGenerator.Feature.ESCAPE_NON_ASCII, true);
+        }
+    };
+
+    private final Timer timer = new Timer("OpenTSDBTimer", true);
+    private OpenTsdbConnexion cnx;
 
     @Override
     public OpentsdbStore create(Probe<?, ?> p) {
-        return new OpentsdbStore(p, tsdb);
+        return new OpentsdbStore(p, cnx);
     }
 
     @Override
     public void configureStore(PropertiesManager pm, Properties props) {
-        super.configureStore(pm, props);
-        //        try {
-        //            hbaseInit(props);
-        //        } catch (MasterNotRunningException e) {
-        //            throw new RuntimeException("Failed to init hbase storage connector: " + e.getMessage(), e);
-        //        } catch (ZooKeeperConnectionException e) {
-        //            throw new RuntimeException("Failed to init hbase storage connector: " + e.getMessage(), e);
-        //        } catch (IOException e) {
-        //            Throwable rootCause = e;
-        //            if(e.getCause() != null && e.getCause().getClass() == java.lang.reflect.InvocationTargetException.class) {
-        //                rootCause = e.getCause().getCause();
-        //            }
-        //            throw new RuntimeException("Failed to init hbase storage connector: " + rootCause.getMessage(), rootCause);
-        //        }
-
-
         try {
-            Config tsdbConfig = new Config(false);
-            System.out.println(tsdbConfig.dumpConfiguration());
-            for(Map.Entry<Object, Object> i: props.entrySet()) {
-                tsdbConfig.overrideConfig(i.getKey().toString(), i.getValue().toString());
-            }
-            tsdbConfig.overrideConfig("tsd.storage.hbase.zk_quorum", "rpmbuilder.prod.exalead.com");
-            tsdb = new TSDB(tsdbConfig);
-        } catch (IOException e) {
+            super.configureStore(pm, props);
+
+            String portStr = props.getProperty("port", "4242");
+            int port = Util.parseStringNumber(portStr, new Integer(4242));
+
+            String publishersStr = props.getProperty("publishers", "2");
+            int publishers = Util.parseStringNumber(publishersStr, new Integer(2));
+
+            String timeoutStr = props.getProperty("timeout", "10");
+            int timeout = Util.parseStringNumber(timeoutStr, new Integer(10));
+
+            String bufferSizeStr = props.getProperty("buffer", "20");
+            int buffersize = Util.parseStringNumber(bufferSizeStr, new Integer(20));
+
+            String serversStr = props.getProperty("servers","localhost");
+            URI[] servers = buildUri(serversStr.split(";"), port);
+
+            this.cnx = new OpenTsdbConnexion(json, servers, buffersize, publishers, timeout, timer);
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    private void hbaseInit(Properties props) throws MasterNotRunningException, ZooKeeperConnectionException, IOException {
-        Configuration hConf = HBaseConfiguration.create();
-        hConf.set("hbase.zookeeper.quorum", props.getProperty("quorum", "rpmbuilder.prod.exalead.com"));
-        //hConf.set("hbase.zookeeper.property.clientPort", props.getProperty("quorum", "rpmbuilder.prod.exalead.com"));
-        hConf.setBoolean("hbase.defaults.for.version.skip", true);
-        HBaseAdmin hBaseAdmin = new HBaseAdmin(hConf);
-
-        hbaseInitTable(hBaseAdmin, "tsdb", "t");
-        hbaseInitTable(hBaseAdmin, "tsdb-uid", "id", "name");
-        hbaseInitTable(hBaseAdmin, "tsdb-tree", "t");
-        hbaseInitTable(hBaseAdmin, "tsdb-meta", "name");
-
-    }
-
-    private void hbaseInitTable(HBaseAdmin hBaseAdmin, String tableName, String... columns) throws IOException {
-        try {
-            HTableDescriptor tableDescriptor = new HTableDescriptor(TableName.valueOf(tableName));
-            if (!hBaseAdmin.tableExists(tableName)) {
-                for (String s : columns) {
-                    tableDescriptor.addFamily(new HColumnDescriptor(s));
-                }
-                hBaseAdmin.createTable(tableDescriptor);
+    private URI[] buildUri(String[] destinations, int port) throws URISyntaxException {
+        URI[] servers = new URI[destinations.length];
+        for(int i = 0; i < destinations.length ; i++) {
+            String destination = destinations[i];
+            if ( !destination.contains("//") ) {
+                destination = "//" + destination;
             }
-        } finally {
-            hBaseAdmin.close();
+            URI newEndPoint = new URI(destination);
+            int localport = port;
+            if ("http".equals(newEndPoint.getScheme()) && newEndPoint.getPort() <= 0) {
+                // if http was given, and not port specified, the user expected default port
+                localport = port;
+            }
+            servers[i] = new URI(
+                    (newEndPoint.getScheme() != null  ? newEndPoint.getScheme() : "http"),
+                    null,
+                    (newEndPoint.getHost() != null ? newEndPoint.getHost() : "localhost"),
+                    (newEndPoint.getPort() > 0 ? newEndPoint.getPort() : localport),
+                    (newEndPoint.getPath() != null ? newEndPoint.getPath() : ""),
+                    null,
+                    null
+                    );
         }
+        return servers;
     }
 
 }

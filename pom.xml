@@ -12,8 +12,9 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <buildSource>1.7</buildSource>
-        <buildTarget>1.7</buildTarget>
+        <buildSource>1.8</buildSource>
+        <buildTarget>1.8</buildTarget>
+        <jackson>2.8.7</jackson>
     </properties>
 
     <dependencies>
@@ -24,20 +25,15 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>net.opentsdb</groupId>
-            <artifactId>opentsdb</artifactId>
-            <version>2.0.1</version>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson}</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>4.11</version>
             <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.hbase</groupId>
-            <artifactId>hbase-client</artifactId>
-            <version>1.0.1</version>
         </dependency>
     </dependencies>
     <repositories>
