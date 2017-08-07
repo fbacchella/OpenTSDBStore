@@ -141,15 +141,21 @@ public class OpenTsdbConnexion {
     }
 
     public void newSample(JrdsSample sample) {
-        while ( ! bulkqueue.offer(sample)) {
+        int tryoffer = 10;
+        while ( ! bulkqueue.offer(sample) && tryoffer-- != 0) {
             // If queue full, launch a bulk publication
             synchronized (bulkqueue) {
                 bulkqueue.notify();
-                Thread.yield();
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    tryoffer = 0;
+                    Thread.currentThread().interrupt();
+                }
             }
         }
-        // if queue reached publication size, publish
-        if (bulkqueue.size() > buffersize) {
+        // if queue reached publication size or offer failed, publish
+        if (bulkqueue.size() > buffersize || tryoffer == 0) {
             synchronized (bulkqueue) {
                 bulkqueue.notify();
             }
