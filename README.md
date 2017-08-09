@@ -1,5 +1,4 @@
-This package use the store fonctionnality of [jrds](https://jrds.fr). All collected data will be send to an OpenTSDB database and be display using [grafana](https://grafana.com).
-
+This package use the store functionality of [jrds](https://jrds.fr). All collected data will be sent to an OpenTSDB database and be displayed using [grafana](https://grafana.com).
 
 To use it in jrds, add in jrds.properties:
 
@@ -11,13 +10,12 @@ To use it in jrds, add in jrds.properties:
     
 Usable settings:
 
- * port: The listnening port of OpenTSDB servers, default to 4242.
+ * port: the listening port of OpenTSDB servers, defaults to 4242.
 
- * publishers: Who many publishing threads to create, default to 2.
+ * publishers: how many publishing threads to create, defaults to 2.
 
- * timeout: the networks timeout in seconds, default to 10s.
+ * timeout: the network timeout in seconds, defaults to 10s.
 
- * buffer: batch size, default to 20 samples.
+ * buffer: batch size, defaults to 20 samples.
 
- * servers: a semi-column separated lists of servers to use, default to localhost. It can be an URI, to enforce HTTPS usage.
-
+ * servers: a semicolon separated list of servers to use, defaults to localhost. It can be an URI, to enforce HTTPS usage.
