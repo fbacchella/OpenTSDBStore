@@ -1,3 +1,6 @@
+This package use the store fonctionnality of [jrds](https://jrds.fr). All collected data will be send to an OpenTSDB database and be display using [grafana](https://grafana.com).
+
+
 To use it in jrds, add in jrds.properties:
 
     classpath=...;.../OpenTSDBStore/target/OpenTSDBStore-0.0.1-SNAPSHOT-jar-with-dependencies.jar
